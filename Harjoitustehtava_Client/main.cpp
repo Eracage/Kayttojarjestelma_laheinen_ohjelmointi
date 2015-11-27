@@ -4,18 +4,20 @@
 #include <ws2tcpip.h>
 #include <iostream>
 
+#include <string>
+
 #pragma comment (lib, "Ws2_32.lib")
 
 
 #define DEFAULT_BUFLEN 512
-#define DEFAULT_PORT "27015"
+#define DEFAULT_PORT 50000
 
 int main(int argc, char **argv)
 {
 	WSADATA wsaData;
 	SOCKET ConnectSocket = INVALID_SOCKET;
-	struct addrinfo *result = NULL,
-		*ptr = NULL,
+	struct addrinfo *result = nullptr,
+		*ptr = nullptr,
 		hints;
 	char *sendbuf = "this is a test";
 	char recvbuf[DEFAULT_BUFLEN];
@@ -41,7 +43,7 @@ int main(int argc, char **argv)
 	hints.ai_protocol = IPPROTO_TCP;
 
 	// Resolve the server address and port
-	iResult = getaddrinfo(argv[2], DEFAULT_PORT, &hints, &result);
+	iResult = getaddrinfo(argv[2], std::to_string(DEFAULT_PORT).c_str(), &hints, &result);
 	if (iResult != 0) {
 		std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
 		WSACleanup();
@@ -49,7 +51,7 @@ int main(int argc, char **argv)
 	}
 
 	// Attempt to connect to an address until one succeeds
-	for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
+	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next) {
 
 		// Create a SOCKET for connecting to server
 		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
