@@ -25,14 +25,16 @@ int main(int argc, char **argv)
 	int recvbuflen = DEFAULT_BUFLEN;
 
 	// Validate the parameters
-	if (argc != 3) {
+	if (argc != 3)
+	{
 		std::cout << "usage: " << argv[1]  << " server - name" << std::endl;
 		return 1;
 	}
 
 	// Initialize Winsock
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (iResult != 0) {
+	if (iResult != 0)
+	{
 		std::cout << "WSAStartup failed with error: " << iResult << std::endl;
 		return 1;
 	}
@@ -44,19 +46,22 @@ int main(int argc, char **argv)
 
 	// Resolve the server address and port
 	iResult = getaddrinfo(argv[2], std::to_string(DEFAULT_PORT).c_str(), &hints, &result);
-	if (iResult != 0) {
+	if (iResult != 0)
+	{
 		std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
 		WSACleanup();
 		return 1;
 	}
 
 	// Attempt to connect to an address until one succeeds
-	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next) {
+	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
+	{
 
 		// Create a SOCKET for connecting to server
 		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
 			ptr->ai_protocol);
-		if (ConnectSocket == INVALID_SOCKET) {
+		if (ConnectSocket == INVALID_SOCKET)
+		{
 			std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
 			WSACleanup();
 			return 1;
@@ -64,7 +69,8 @@ int main(int argc, char **argv)
 
 		// Connect to server.
 		iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-		if (iResult == SOCKET_ERROR) {
+		if (iResult == SOCKET_ERROR)
+		{
 			closesocket(ConnectSocket);
 			ConnectSocket = INVALID_SOCKET;
 			continue;
@@ -74,7 +80,8 @@ int main(int argc, char **argv)
 
 	freeaddrinfo(result);
 
-	if (ConnectSocket == INVALID_SOCKET) {
+	if (ConnectSocket == INVALID_SOCKET)
+	{
 		std::cout << "Unable to connect to server!" << std::endl;
 		WSACleanup();
 		return 1;
@@ -82,7 +89,8 @@ int main(int argc, char **argv)
 
 	// Send an initial buffer
 	iResult = send(ConnectSocket, sendbuf, (int)strlen(sendbuf), 0);
-	if (iResult == SOCKET_ERROR) {
+	if (iResult == SOCKET_ERROR)
+	{
 		std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
 		closesocket(ConnectSocket);
 		WSACleanup();
@@ -92,7 +100,8 @@ int main(int argc, char **argv)
 
 	// shutdown the connection since no more data will be sent
 	iResult = shutdown(ConnectSocket, SD_SEND);
-	if (iResult == SOCKET_ERROR) {
+	if (iResult == SOCKET_ERROR)
+	{
 		std::cout << "shutdown failed with error: " << WSAGetLastError() << std::endl;
 		closesocket(ConnectSocket);
 		WSACleanup();

@@ -10,6 +10,8 @@
 #include <mutex>
 
 #include <string>
+#include <sstream>
+#include <vector>
 
 #pragma comment (lib, "Ws2_32.lib")
 
@@ -25,15 +27,30 @@ void ThreadSafePrint(const char* buf)
 	printMutex.unlock();
 }
 
-void clientListener(SOCKET ListenSocket)
+void ThreadSafePrint(std::string string)
+{
+	printMutex.lock();
+	std::cout << string << std::endl;
+	printMutex.unlock();
+}
+
+void ClientListener(SOCKET ListenSocket, int ThreadNum)
 {
 	int iResult;
+	int iSendResult;
+
 	SOCKET ClientSocket = INVALID_SOCKET;
+	
+	std::stringstream text;
+
+	char buffer[DEFAULT_BUFLEN];
 
 	iResult = listen(ListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR)
 	{
-		std::cout << "listen failed with error: " << WSAGetLastError() << std::endl;
+		text << "Thread " << ThreadNum << ": " << "listen failed with error: " << WSAGetLastError() << std::endl;
+		ThreadSafePrint(text.str());
+
 		closesocket(ListenSocket);
 		return;
 	}
@@ -42,7 +59,9 @@ void clientListener(SOCKET ListenSocket)
 	ClientSocket = accept(ListenSocket, nullptr, nullptr);
 	if (ClientSocket == INVALID_SOCKET)
 	{
-		std::cout << "accept failed with error: " << WSAGetLastError() << std::endl;
+		text << "Thread " << ThreadNum << "accept failed with error: " << WSAGetLastError() << std::endl;
+		ThreadSafePrint(text.str());
+
 		closesocket(ListenSocket);
 		return;
 	}
@@ -50,6 +69,50 @@ void clientListener(SOCKET ListenSocket)
 	// No longer need server socket
 	closesocket(ListenSocket);
 
+	do {
+		// TODO: Write Communication Logic
+
+
+		iResult = recv(ClientSocket, buffer, DEFAULT_BUFLEN, 0);
+		if (iResult > 0)
+		{
+			text << "Thread " << ThreadNum << "Bytes received: " << iResult << std::endl;
+			ThreadSafePrint(text.str());
+			text.clear();
+
+			// Echo the buffer back to the sender
+			iSendResult = send(ClientSocket, buffer, iResult, 0);
+			if (iSendResult == SOCKET_ERROR)
+			{
+				text << "Thread " << ThreadNum << "send failed with error: " << WSAGetLastError() << std::endl;
+				ThreadSafePrint(text.str());
+
+				closesocket(ClientSocket);
+				return;
+			}
+			text << "Bytes sent: " << iSendResult << std::endl;
+			ThreadSafePrint(text.str());
+			text.clear();
+		}
+		else if (iResult == 0)
+		{
+			text << "Thread " << ThreadNum << "Connection closing..." << std::endl;
+			ThreadSafePrint(text.str());
+			text.clear();
+		}
+		else
+		{
+			text << "Thread " << ThreadNum << "recv failed with error: " << WSAGetLastError() << std::endl;
+			ThreadSafePrint(text.str());
+			text.clear();
+
+			closesocket(ClientSocket);
+			return;
+		}
+
+	} while (iResult > 0);
+
+	closesocket(ClientSocket);
 }
 
 int main()
@@ -59,12 +122,13 @@ int main()
 
 	SOCKET ListenSocket = INVALID_SOCKET;
 	SOCKET ClientSocket = INVALID_SOCKET;
+	SOCKET NewListenSocket = INVALID_SOCKET;
 
 	struct addrinfo *result = nullptr;
 	struct addrinfo hints;
 
 	int iSendResult;
-	char recvbuf[DEFAULT_BUFLEN];
+	char buffer[DEFAULT_BUFLEN];
 	int recvbuflen = DEFAULT_BUFLEN;
 
 	// Initialize Winsock
@@ -75,57 +139,62 @@ int main()
 		return 1;
 	}
 
+	std::vector<std::thread*> ClientListeners;
+
 	ZeroMemory(&hints, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 
-	int nextSocket = DEFAULT_PORT;
+	
+	u_short nextSocket = DEFAULT_PORT;
 
+
+	// Resolve the server address and port
+	iResult = getaddrinfo(nullptr, std::to_string(DEFAULT_PORT).c_str(), &hints, &result);
+	if (iResult != 0)
+	{
+		std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
+		WSACleanup();
+		return 1;
+	}
+
+	// Create a SOCKET for connecting to server
+	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (ListenSocket == INVALID_SOCKET)
+	{
+		std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
+		freeaddrinfo(result);
+		WSACleanup();
+		return 1;
+	}
+
+	// Setup the TCP listening socket
+	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+	if (iResult == SOCKET_ERROR)
+	{
+		std::cout << "bind failed with error: " << WSAGetLastError() << std::endl;
+		freeaddrinfo(result);
+		closesocket(ListenSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	freeaddrinfo(result);
+
+	iResult = listen(ListenSocket, SOMAXCONN);
+	if (iResult == SOCKET_ERROR)
+	{
+		std::cout << "listen failed with error: " << WSAGetLastError() << std::endl;
+		closesocket(ListenSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	// Accept new connections and create sockets and threads for them
 	while (true)
 	{
-		// Resolve the server address and port
-		iResult = getaddrinfo(nullptr, std::to_string(DEFAULT_PORT).c_str(), &hints, &result);
-		if (iResult != 0)
-		{
-			std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
-			WSACleanup();
-			return 1;
-		}
-
-		// Create a SOCKET for connecting to server
-		ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-		if (ListenSocket == INVALID_SOCKET)
-		{
-			std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
-			freeaddrinfo(result);
-			WSACleanup();
-			return 1;
-		}
-
-		// Setup the TCP listening socket
-		iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
-		if (iResult == SOCKET_ERROR)
-		{
-			std::cout << "bind failed with error: " << WSAGetLastError() << std::endl;
-			freeaddrinfo(result);
-			closesocket(ListenSocket);
-			WSACleanup();
-			return 1;
-		}
-
-		freeaddrinfo(result);
-
-		iResult = listen(ListenSocket, SOMAXCONN);
-		if (iResult == SOCKET_ERROR)
-		{
-			std::cout << "listen failed with error: " << WSAGetLastError() << std::endl;
-			closesocket(ListenSocket);
-			WSACleanup();
-			return 1;
-		}
-
 		// Accept a client socket
 		ClientSocket = accept(ListenSocket, nullptr, nullptr);
 		if (ClientSocket == INVALID_SOCKET)
@@ -136,9 +205,7 @@ int main()
 			return 1;
 		}
 
-		// No longer need server socket
-		closesocket(ListenSocket);
-
+		// Search for next available port
 		while (nextSocket < 65000)
 		{
 			nextSocket++;
@@ -147,88 +214,62 @@ int main()
 			if (iResult != 0)
 			{
 				std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
-				break;
+				continue;
 			}
 
 			// Create a SOCKET for connecting to server
-			ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-			if (ListenSocket == INVALID_SOCKET)
+			NewListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+			if (NewListenSocket == INVALID_SOCKET)
 			{
 				std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
 				freeaddrinfo(result);
-				WSACleanup();
-				return 1;
+				continue;
 			}
-
 			// Setup the TCP listening socket
-			iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+			iResult = bind(NewListenSocket, result->ai_addr, (int)result->ai_addrlen);
 			if (iResult == SOCKET_ERROR)
 			{
 				std::cout << "bind failed with error: " << WSAGetLastError() << std::endl;
 				freeaddrinfo(result);
-				closesocket(ListenSocket);
-				WSACleanup();
-				return 1;
+				closesocket(NewListenSocket);
+				continue;
 			}
 
 			freeaddrinfo(result);
+			break;
 		}
-		//TODO: continue
-		iSendResult = send(ClientSocket, recvbuf, sizeof(UINT32), 0);
+
+		// Create new thread for new connection
+		ClientListeners.push_back(new std::thread(ClientListener, NewListenSocket, ClientListeners.size()));
+
+		// Write port number to buffer
+		std::string port = std::to_string(nextSocket);
+		strncpy(buffer, port.c_str(), port.length + 1);
+
+		// Tell the new port for client
+		iSendResult = send(ClientSocket, buffer, DEFAULT_BUFLEN, 0);
 		if (iSendResult == SOCKET_ERROR)
 		{
 			std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
 			closesocket(ClientSocket);
-			WSACleanup();
-			return 1;
 		}
 
-		closesocket(ClientSocket);
-	}
-
-	// Receive until the peer shuts down the connection
-	do {
-
-		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
-		if (iResult > 0)
+		// shutdown the connection since we're done
+		iResult = shutdown(ClientSocket, SD_SEND);
+		if (iResult == SOCKET_ERROR)
 		{
-			std::cout << "Bytes received: " << iResult << std::endl;
-
-			// Echo the buffer back to the sender
-			iSendResult = send(ClientSocket, recvbuf, iResult, 0);
-			if (iSendResult == SOCKET_ERROR)
-			{
-				std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
-				closesocket(ClientSocket);
-				WSACleanup();
-				return 1;
-			}
-			std::cout << "Bytes sent: " << iSendResult << std::endl;
-		}
-		else if (iResult == 0)
-			std::cout << "Connection closing..." << std::endl;
-		else
-		{
-			std::cout << "recv failed with error: " << WSAGetLastError() << std::endl;
+			std::cout << "shutdown failed with error: " << WSAGetLastError() << std::endl;
 			closesocket(ClientSocket);
 			WSACleanup();
 			return 1;
 		}
 
-	} while (iResult > 0);
-
-	// shutdown the connection since we're done
-	iResult = shutdown(ClientSocket, SD_SEND);
-	if (iResult == SOCKET_ERROR)
-	{
-		std::cout << "shutdown failed with error: " << WSAGetLastError() << std::endl;
 		closesocket(ClientSocket);
-		WSACleanup();
-		return 1;
 	}
 
-	// cleanup
-	closesocket(ClientSocket);
+	// No longer need server socket
+	closesocket(ListenSocket);
+
 	WSACleanup();
 
 	return 0;
@@ -246,7 +287,7 @@ int main()
 	struct addrinfo hints;
 
 	int iSendResult;
-	char recvbuf[DEFAULT_BUFLEN];
+	char buffer[DEFAULT_BUFLEN];
 	int recvbuflen = DEFAULT_BUFLEN;
 
 	// Initialize Winsock
@@ -258,6 +299,8 @@ int main()
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 
+
+
 	getaddrinfo(nullptr, std::to_string(DEFAULT_PORT).c_str(), &hints, &result);
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
@@ -268,18 +311,16 @@ int main()
 	closesocket(ListenSocket);
 
 	do {
-		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
-		if (iResult > 0) {
-			std::cout << "Bytes received: " << iResult << std::endl;
-			iSendResult = send(ClientSocket, recvbuf, iResult, 0);
-			std::cout << "Bytes sent: " << iSendResult << std::endl;
-		}
-		else if (iResult == 0)
-			std::cout << "Connection closing..." << std::endl;
+		iResult = recv(ClientSocket, buffer, recvbuflen, 0);
+		iSendResult = send(ClientSocket, buffer, iResult, 0);
 
 	} while (iResult > 0);
 
 	closesocket(ClientSocket);
+
+
+
+
 	WSACleanup();
 	return 0;
 }
