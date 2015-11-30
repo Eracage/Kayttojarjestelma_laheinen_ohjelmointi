@@ -1,31 +1,20 @@
-//#undef UNICODE
-
 #define WIN32_LEAN_AND_MEAN
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#include <iostream>
 #include <thread>
 #include <mutex>
 
-#include <string>
+#include <iostream>
 #include <sstream>
-#include <vector>
 
-#pragma comment (lib, "Ws2_32.lib")
+#include <vector>
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 50000
 
 std::mutex printMutex;
-
-void ThreadSafePrint(const char* buf)
-{
-	printMutex.lock();
-	std::cout << buf << std::endl;
-	printMutex.unlock();
-}
 
 void ThreadSafePrint(std::string string)
 {
@@ -106,9 +95,6 @@ void ClientListener(SOCKET ListenSocket, int ThreadNum)
 				closesocket(ClientSocket);
 				return;
 			}
-			//text << "Bytes sent: " << iSendResult << std::endl;
-			//ThreadSafePrint(text.str());
-			//text.str(std::string());
 		}
 		else if (iResult == 0)
 		{
@@ -209,7 +195,7 @@ int main()
 		return 1;
 	}
 
-	std::cout << "Initializing Complete, waiting for Customers:" << std::endl << std::endl;
+	std::cout << "Initialization Complete, waiting for Customers:" << std::endl << std::endl;
 
 	// Accept new connections and create sockets and threads for them
 	while (true)
@@ -265,7 +251,7 @@ int main()
 		std::string port = std::to_string(nextSocket);
 		strncpy_s(buffer, port.c_str(), port.length() + 1);
 
-		// Tell the new port for client
+		// Tell the new port for the client
 		iSendResult = send(ClientSocket, buffer, DEFAULT_BUFLEN, 0);
 		if (iSendResult == SOCKET_ERROR)
 		{
@@ -273,7 +259,7 @@ int main()
 			closesocket(ClientSocket);
 		}
 
-		// shutdown the connection since we're done
+		// shutdown the connection so we can start new one
 		iResult = shutdown(ClientSocket, SD_SEND);
 		if (iResult == SOCKET_ERROR)
 		{
@@ -285,62 +271,15 @@ int main()
 
 		closesocket(ClientSocket);
 	}
+	// while true so it never gets here... but let's keep them here if we develop this further some time
 
-	// No longer need server socket
+	for each (std::thread* thread in ClientListeners)
+	{
+		thread->join();
+	}
+
+	// No longer need listener socket
 	closesocket(ListenSocket);
-
-	WSACleanup();
-
-	return 0;
-}
-#if False
-int main()
-{
-	WSADATA wsaData;
-	int iResult;
-
-	SOCKET ListenSocket = INVALID_SOCKET;
-	SOCKET ClientSocket = INVALID_SOCKET;
-
-	struct addrinfo *result = nullptr;
-	struct addrinfo hints;
-
-	int iSendResult;
-	char buffer[DEFAULT_BUFLEN];
-	int recvbuflen = DEFAULT_BUFLEN;
-
-	// Initialize Winsock
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-	ZeroMemory(&hints, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	hints.ai_flags = AI_PASSIVE;
-
-
-
-	getaddrinfo(nullptr, std::to_string(DEFAULT_PORT).c_str(), &hints, &result);
-	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-	bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
-	freeaddrinfo(result);
-
-	listen(ListenSocket, SOMAXCONN);
-	ClientSocket = accept(ListenSocket, nullptr, nullptr);
-	closesocket(ListenSocket);
-
-	do {
-		iResult = recv(ClientSocket, buffer, recvbuflen, 0);
-		iSendResult = send(ClientSocket, buffer, iResult, 0);
-
-	} while (iResult > 0);
-
-	closesocket(ClientSocket);
-
-
-
-
 	WSACleanup();
 	return 0;
 }
-#endif

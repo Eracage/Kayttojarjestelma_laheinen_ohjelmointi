@@ -8,29 +8,18 @@
 
 #include <string>
 
-#pragma comment (lib, "Ws2_32.lib")
-
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT 50000
 
-void HandleShutdown(SOCKET ConnectSocket)
+void ConnectionShutdowner(SOCKET ConnectSocket)
 {
 	int iResult;
 	char buffer[DEFAULT_BUFLEN];
-	// Receive until the peer closes the connection
-	do {
 
+	do {
 		iResult = recv(ConnectSocket, buffer, DEFAULT_BUFLEN, 0);
-		if (iResult > 0)
-		{
-			//std::cout << "Bytes received: " << iResult << std::endl;
-		}
-		else if (iResult == 0)
-		{
-			//std::cout << "Connection closed" << std::endl;
-		}
-		else
+		if (iResult < 0)
 		{
 			std::cout << "recv failed with error: " << WSAGetLastError() << std::endl;
 		}
@@ -41,16 +30,16 @@ void HandleShutdown(SOCKET ConnectSocket)
 int main(int argc, char **argv)
 {
 	char server[DEFAULT_BUFLEN] = "localhost";
+	char buffer[DEFAULT_BUFLEN];
 
 	WSADATA wsaData;
+
 	SOCKET FirstConnectSocket = INVALID_SOCKET;
 	SOCKET ConnectSocket = INVALID_SOCKET;
-	struct addrinfo *result = nullptr,
-		*ptr = nullptr,
-		hints;
 
-	char *sendbuf = "this is a test";
-	char buffer[DEFAULT_BUFLEN];
+	addrinfo *result = nullptr;
+	addrinfo *ptr = nullptr;
+	addrinfo hints;
 
 	int iResult;
 
@@ -79,7 +68,6 @@ int main(int argc, char **argv)
 	// Attempt to connect to an address until one succeeds
 	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
 	{
-
 		// Create a SOCKET for connecting to server
 		FirstConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
 			ptr->ai_protocol);
@@ -113,7 +101,6 @@ int main(int argc, char **argv)
 	iResult = recv(FirstConnectSocket, buffer, DEFAULT_BUFLEN, 0);
 	if (iResult > 0)
 	{
-		//std::cout << "Server: " << buffer << std::endl;
 	}
 	else if (iResult == 0)
 	{
@@ -124,7 +111,7 @@ int main(int argc, char **argv)
 		std::cout << "recv failed with error: " << WSAGetLastError() << std::endl;
 	}
 
-	std::thread connectShutdown(HandleShutdown, FirstConnectSocket);
+	std::thread connectShutdown(ConnectionShutdowner, FirstConnectSocket);
 
 	// Port resolved
 
@@ -192,7 +179,7 @@ int main(int argc, char **argv)
 
 
 	// Send an initial buffer
-	iResult = send(ConnectSocket, buffer, (int)strlen(sendbuf), 0);
+	iResult = send(ConnectSocket, buffer, (int)strlen(buffer), 0);
 	if (iResult == SOCKET_ERROR)
 	{
 		std::cout << "send failed with error: " << WSAGetLastError() << std::endl;
@@ -200,7 +187,6 @@ int main(int argc, char **argv)
 		WSACleanup();
 		return 1;
 	}
-	std::cout << "Bytes Sent: " << iResult << std::endl;
 
 	// shutdown the connection since no more data will be sent
 	iResult = shutdown(ConnectSocket, SD_SEND);
@@ -220,7 +206,6 @@ int main(int argc, char **argv)
 			std::cout << "Server: ";
 			std::cout.write(buffer, iResult);
 			std::cout << std::endl;
-			//std::cout << "Bytes received: " << iResult << std::endl;
 		}
 		else if (iResult == 0)
 		{
@@ -242,62 +227,3 @@ int main(int argc, char **argv)
 
 	return 0;
 }
-
-#if False
-int main(int argc, char **argv)
-{
-	WSADATA wsaData;
-	SOCKET ConnectSocket = INVALID_SOCKET;
-	struct addrinfo *result = nullptr,
-		*ptr = nullptr,
-		hints;
-
-	char *sendbuf = "this is a test";
-	char buffer[DEFAULT_BUFLEN];
-
-	int iResult;
-
-	// Initialize Winsock
-	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-	ZeroMemory(&hints, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-
-	getaddrinfo(argv[2], buffer, &hints, &result);
-
-	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
-	{
-		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-
-		iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-		if (iResult == SOCKET_ERROR)
-		{
-			closesocket(ConnectSocket);
-			ConnectSocket = INVALID_SOCKET;
-			continue;
-		}
-		break;
-	}
-
-	freeaddrinfo(result);
-
-	send(ConnectSocket, sendbuf, (int)strlen(sendbuf), 0);
-	shutdown(ConnectSocket, SD_SEND);
-
-	do {
-
-		iResult = recv(ConnectSocket, buffer, DEFAULT_BUFLEN, 0);
-		if (iResult > 0)
-			std::cout << "Bytes received: " << iResult << std::endl;
-		else if (iResult == 0)
-			std::cout << "Connection closed" << std::endl;
-
-	} while (iResult > 0);
-	closesocket(ConnectSocket);
-
-	WSACleanup();
-	return 0;
-}
-#endif
