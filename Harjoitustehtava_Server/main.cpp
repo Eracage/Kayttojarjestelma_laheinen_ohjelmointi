@@ -69,9 +69,21 @@ void ClientListener(SOCKET ListenSocket, int ThreadNum)
 	// No longer need server socket
 	closesocket(ListenSocket);
 
+	std::string welcomeText = "Welcome to Restaurant OY. Enter your order please:";
+	strncpy(buffer, welcomeText.c_str(), welcomeText.length + 1);
+
+	iResult = send(ClientSocket, buffer, (int)strlen(buffer), 0);
+	if (iResult == SOCKET_ERROR)
+	{
+		text << "send failed with error: " << WSAGetLastError() << std::endl;
+		ThreadSafePrint(text.str());
+		text.clear();
+		closesocket(ClientSocket);
+		return;
+	}
+
 	do {
 		// TODO: Write Communication Logic
-
 
 		iResult = recv(ClientSocket, buffer, DEFAULT_BUFLEN, 0);
 		if (iResult > 0)
