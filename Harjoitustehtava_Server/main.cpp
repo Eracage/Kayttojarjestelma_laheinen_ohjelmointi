@@ -69,15 +69,18 @@ void ClientListener(SOCKET ListenSocket, int ThreadNum)
 	// No longer need server socket
 	closesocket(ListenSocket);
 
+	text << "Customer " << ThreadNum << " Connected: " << std::endl;
+	ThreadSafePrint(text.str());
+	text.str(std::string());
+
 	std::string welcomeText = "Welcome to Restaurant OY. Enter your order please:";
-	strncpy(buffer, welcomeText.c_str(), welcomeText.length + 1);
+	strncpy_s(buffer, welcomeText.c_str(), welcomeText.length() + 1);
 
 	iResult = send(ClientSocket, buffer, (int)strlen(buffer), 0);
 	if (iResult == SOCKET_ERROR)
 	{
 		text << "send failed with error: " << WSAGetLastError() << std::endl;
 		ThreadSafePrint(text.str());
-		text.clear();
 		closesocket(ClientSocket);
 		return;
 	}
@@ -88,9 +91,10 @@ void ClientListener(SOCKET ListenSocket, int ThreadNum)
 		iResult = recv(ClientSocket, buffer, DEFAULT_BUFLEN, 0);
 		if (iResult > 0)
 		{
-			text << "Thread " << ThreadNum << "Bytes received: " << iResult << std::endl;
+			text << "Customer " << ThreadNum << " Ordered: ";
+			text.write(buffer, iResult);
 			ThreadSafePrint(text.str());
-			text.clear();
+			text.str(std::string());
 
 			// Echo the buffer back to the sender
 			iSendResult = send(ClientSocket, buffer, iResult, 0);
@@ -102,21 +106,21 @@ void ClientListener(SOCKET ListenSocket, int ThreadNum)
 				closesocket(ClientSocket);
 				return;
 			}
-			text << "Bytes sent: " << iSendResult << std::endl;
-			ThreadSafePrint(text.str());
-			text.clear();
+			//text << "Bytes sent: " << iSendResult << std::endl;
+			//ThreadSafePrint(text.str());
+			//text.str(std::string());
 		}
 		else if (iResult == 0)
 		{
-			text << "Thread " << ThreadNum << "Connection closing..." << std::endl;
+			text << "Customer " << ThreadNum << " Disconnecting..." << std::endl;
 			ThreadSafePrint(text.str());
-			text.clear();
+			text.str(std::string());
 		}
 		else
 		{
 			text << "Thread " << ThreadNum << "recv failed with error: " << WSAGetLastError() << std::endl;
 			ThreadSafePrint(text.str());
-			text.clear();
+			text.str(std::string());
 
 			closesocket(ClientSocket);
 			return;
@@ -143,6 +147,7 @@ int main()
 	char buffer[DEFAULT_BUFLEN];
 	int recvbuflen = DEFAULT_BUFLEN;
 
+	std::cout << "Initializing Restaurant Server..." << std::endl;
 	// Initialize Winsock
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0)
@@ -204,6 +209,8 @@ int main()
 		return 1;
 	}
 
+	std::cout << "Initializing Complete, waiting for Customers:" << std::endl << std::endl;
+
 	// Accept new connections and create sockets and threads for them
 	while (true)
 	{
@@ -256,7 +263,7 @@ int main()
 
 		// Write port number to buffer
 		std::string port = std::to_string(nextSocket);
-		strncpy(buffer, port.c_str(), port.length + 1);
+		strncpy_s(buffer, port.c_str(), port.length() + 1);
 
 		// Tell the new port for client
 		iSendResult = send(ClientSocket, buffer, DEFAULT_BUFLEN, 0);
