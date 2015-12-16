@@ -66,63 +66,63 @@ int main(int argc, char **argv)
 	}
 
 	// Attempt to connect to an address until one succeeds
-	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
-	{
-		// Create a SOCKET for connecting to server
-		FirstConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
-			ptr->ai_protocol);
-		if (FirstConnectSocket == INVALID_SOCKET)
-		{
-			std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
-			WSACleanup();
-			return 1;
-		}
+	//for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
+	//{
+	//	// Create a SOCKET for connecting to server
+	//	FirstConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
+	//		ptr->ai_protocol);
+	//	if (FirstConnectSocket == INVALID_SOCKET)
+	//	{
+	//		std::cout << "socket failed with error: " << WSAGetLastError() << std::endl;
+	//		WSACleanup();
+	//		return 1;
+	//	}
 
-		// Connect to server.
-		iResult = connect(FirstConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-		if (iResult == SOCKET_ERROR)
-		{
-			closesocket(FirstConnectSocket);
-			FirstConnectSocket = INVALID_SOCKET;
-			continue;
-		}
-		break;
-	}
+	//	// Connect to server.
+	//	iResult = connect(FirstConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+	//	if (iResult == SOCKET_ERROR)
+	//	{
+	//		closesocket(FirstConnectSocket);
+	//		FirstConnectSocket = INVALID_SOCKET;
+	//		continue;
+	//	}
+	//	break;
+	//}
 
-	freeaddrinfo(result);
+	//freeaddrinfo(result);
 
-	if (FirstConnectSocket == INVALID_SOCKET)
-	{
-		std::cout << "Unable to connect to server!" << std::endl;
-		WSACleanup();
-		return 1;
-	}
+	//if (FirstConnectSocket == INVALID_SOCKET)
+	//{
+	//	std::cout << "Unable to connect to server!" << std::endl;
+	//	WSACleanup();
+	//	return 1;
+	//}
 
-	iResult = recv(FirstConnectSocket, buffer, DEFAULT_BUFLEN, 0);
-	if (iResult > 0)
-	{
-	}
-	else if (iResult == 0)
-	{
-		std::cout << "Connection closed" << std::endl;
-	}
-	else
-	{
-		std::cout << "recv failed with error: " << WSAGetLastError() << std::endl;
-	}
+	//iResult = recv(FirstConnectSocket, buffer, DEFAULT_BUFLEN, 0);
+	//if (iResult > 0)
+	//{
+	//}
+	//else if (iResult == 0)
+	//{
+	//	std::cout << "Connection closed" << std::endl;
+	//}
+	//else
+	//{
+	//	std::cout << "recv failed with error: " << WSAGetLastError() << std::endl;
+	//}
 
-	std::thread connectShutdown(ConnectionShutdowner, FirstConnectSocket);
+	//std::thread connectShutdown(ConnectionShutdowner, FirstConnectSocket);
 
 	// Port resolved
 
 	// Resolve the server address and new port
-	iResult = getaddrinfo(server, buffer, &hints, &result);
-	if (iResult != 0)
-	{
-		std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
-		WSACleanup();
-		return 1;
-	}
+	//iResult = getaddrinfo(server, buffer, &hints, &result);
+	//if (iResult != 0)
+	//{
+	//	std::cout << "getaddrinfo failed with error: " << iResult << std::endl;
+	//	WSACleanup();
+	//	return 1;
+	//}
 
 	// Attempt to connect to an address until one succeeds
 	for (ptr = result; ptr != nullptr; ptr = ptr->ai_next)
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 
 	// cleanup
 	closesocket(ConnectSocket);
-	connectShutdown.join();
+	//connectShutdown.join();
 	WSACleanup();
 
 	system("pause");
